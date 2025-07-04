@@ -8,8 +8,11 @@ import {
   upsertContactController,
 } from '../controllers/contacts.js';
 import { ctrlWrapper } from '../utils/ctrlWrapper.js';
+import { isValidId } from '../middlewares/isValidId.js';
 
 const contactsRouter = Router();
+
+contactsRouter.use('/contacts/:contactId', isValidId);
 
 contactsRouter.get('/contacts', ctrlWrapper(getAllContactsController));
 
