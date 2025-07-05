@@ -5,9 +5,29 @@ import {
   getContactById,
   updateContact,
 } from '../services/contacts.js';
+import { parseFilterParams } from '../utils/parseFilterParams.js';
+import { parsePaginationParams } from '../utils/parsePaginationParams.js';
+import { parseSortParams } from '../utils/parseSortParams.js';
 
 export const getAllContactsController = async (req, res) => {
-  const data = await getAllContacts();
+  const { page, perPage } = parsePaginationParams(req.query);
+  const { sortBy, sortOrder } = parseSortParams(req.query);
+  const filters = parseFilterParams(req.query);
+  const data = await getAllContacts({
+    page,
+    perPage,
+    sortBy,
+    sortOrder,
+    filters,
+  });
+
+  if (data.data.length < 1) {
+    return res.json({
+      status: 200,
+      message: 'No contacts found!',
+      data,
+    });
+  }
   res.json({
     status: 200,
     message: 'Successfully found contacts!',
@@ -57,7 +77,9 @@ export const upsertContactController = async (req, res, next) => {
 
   res.status(status).json({
     status,
-    message: `Successfully patched a contact!`,
+    message: isNew
+      ? 'Successfully created a contact!'
+      : 'Successfully patched a contact!',
     data: contact,
   });
 };

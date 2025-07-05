@@ -1,9 +1,42 @@
 import createHttpError from 'http-errors';
 import { ContactsCollection } from '../db/models/contact.js';
+import { calculatePaginationData } from '../utils/calculatePaginationData.js';
+import { FILTER_BY } from '../constants/filterBy.js';
 
-export const getAllContacts = async () => {
-  const contacts = await ContactsCollection.find();
-  return contacts;
+export const getAllContacts = async ({
+  page,
+  perPage,
+  sortBy,
+  sortOrder,
+  filters,
+}) => {
+  if (page < 1 || perPage < 1) {
+    throw createHttpError(
+      400,
+      'Page and perPage value must be at least 1 or higher',
+    );
+  }
+
+  const offset = (page - 1) * perPage;
+
+  const contactsFilter = ContactsCollection.find();
+
+  if (filters.type) {
+    contactsFilter.where(FILTER_BY.TYPE).equals(filters.type);
+  }
+  if (typeof filters.isFavourite === 'boolean') {
+    contactsFilter.where(FILTER_BY.IS_FAVOURITE).equals(filters.isFavourite);
+  }
+
+  const [contactsCount, contacts] = await Promise.all([
+    ContactsCollection.find().merge(contactsFilter).countDocuments(),
+    contactsFilter
+      .skip(offset)
+      .limit(perPage)
+      .sort({ [sortBy]: sortOrder }),
+  ]);
+  const metadata = calculatePaginationData(page, perPage, contactsCount);
+  return { data: contacts, ...metadata };
 };
 
 export const getContactById = async (contactId) => {
