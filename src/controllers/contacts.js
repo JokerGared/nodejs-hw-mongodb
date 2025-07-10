@@ -13,6 +13,7 @@ export const getAllContactsController = async (req, res) => {
   const { page, perPage } = parsePaginationParams(req.query);
   const { sortBy, sortOrder } = parseSortParams(req.query);
   const filters = parseFilterParams(req.query);
+  filters.userId = req.user._id;
   const data = await getAllContacts({
     page,
     perPage,
@@ -37,7 +38,7 @@ export const getAllContactsController = async (req, res) => {
 
 export const getContactByIdController = async (req, res, next) => {
   const { contactId } = req.params;
-  const contact = await getContactById(contactId);
+  const contact = await getContactById(contactId, req.user._id);
 
   res.json({
     status: 200,
@@ -47,7 +48,10 @@ export const getContactByIdController = async (req, res, next) => {
 };
 
 export const createContactController = async (req, res, next) => {
-  const contact = await createContact(req.body);
+  const contact = await createContact({
+    ...req.body,
+    userId: req.user._id,
+  });
 
   res.status(201).json({
     status: 201,
@@ -58,7 +62,7 @@ export const createContactController = async (req, res, next) => {
 
 export const patchContactController = async (req, res, next) => {
   const { contactId } = req.params;
-  const { contact } = await updateContact(contactId, req.body);
+  const { contact } = await updateContact(contactId, req.user._id, req.body);
 
   res.json({
     status: 200,
@@ -69,9 +73,14 @@ export const patchContactController = async (req, res, next) => {
 
 export const upsertContactController = async (req, res, next) => {
   const { contactId } = req.params;
-  const { contact, isNew } = await updateContact(contactId, req.body, {
-    upsert: true,
-  });
+  const { contact, isNew } = await updateContact(
+    contactId,
+    req.user._id,
+    req.body,
+    {
+      upsert: true,
+    },
+  );
 
   const status = isNew ? 201 : 200;
 
@@ -86,7 +95,7 @@ export const upsertContactController = async (req, res, next) => {
 
 export const deleteContactController = async (req, res, next) => {
   const { contactId } = req.params;
-  await deleteContact(contactId);
+  await deleteContact(contactId, req.user._id);
 
   res.status(204).send();
 };

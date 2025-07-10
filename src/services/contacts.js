@@ -28,6 +28,10 @@ export const getAllContacts = async ({
     contactsFilter.where(FILTER_BY.IS_FAVOURITE).equals(filters.isFavourite);
   }
 
+  if (filters.userId) {
+    contactsFilter.where('userId').equals(filters.userId);
+  }
+
   const [contactsCount, contacts] = await Promise.all([
     ContactsCollection.find().merge(contactsFilter).countDocuments(),
     contactsFilter
@@ -39,12 +43,16 @@ export const getAllContacts = async ({
   return { data: contacts, ...metadata };
 };
 
-export const getContactById = async (contactId) => {
-  const contact = await ContactsCollection.findById(contactId);
+export const getContactById = async (contactId, userId) => {
+  const contact = await ContactsCollection.findOne({
+    _id: contactId,
+    userId,
+  });
 
   if (!contact) {
     throw createHttpError(404, 'Contact not found');
   }
+
   return contact;
 };
 
@@ -53,9 +61,14 @@ export const createContact = async (payload) => {
   return contact;
 };
 
-export const updateContact = async (contactId, payload, options = {}) => {
-  const result = await ContactsCollection.findByIdAndUpdate(
-    contactId,
+export const updateContact = async (
+  contactId,
+  userId,
+  payload,
+  options = {},
+) => {
+  const result = await ContactsCollection.findOneAndUpdate(
+    { _id: contactId, userId },
     payload,
     {
       new: true,
@@ -63,7 +76,6 @@ export const updateContact = async (contactId, payload, options = {}) => {
       ...options,
     },
   );
-  console.log(result);
 
   if (!result.value) {
     throw createHttpError(404, 'Contact not found');
@@ -74,9 +86,11 @@ export const updateContact = async (contactId, payload, options = {}) => {
   };
 };
 
-export const deleteContact = async (contactId) => {
-  const contact = await ContactsCollection.findByIdAndDelete(contactId);
-
+export const deleteContact = async (contactId, userId) => {
+  const contact = await ContactsCollection.findOneAndDelete({
+    _id: contactId,
+    userId,
+  });
   if (!contact) {
     throw createHttpError(404, 'Contact not found');
   }
