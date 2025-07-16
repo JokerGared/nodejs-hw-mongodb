@@ -1,9 +1,21 @@
 import createHttpError from 'http-errors';
+import jwt from 'jsonwebtoken';
 import { randomBytes } from 'crypto';
 import { User } from '../db/models/user.js';
 import bcrypt from 'bcrypt';
 import { Session } from '../db/models/session.js';
 import { time } from '../constants/timeCounts.js';
+import { sendMail } from '../utils/sendMail.js';
+import { getEnvVar } from '../utils/getEnvVar.js';
+import { envVars } from '../constants/envVars.js';
+import handlebars from 'handlebars';
+import path from 'node:path';
+import fs from 'node:fs';
+import { TEMPLATE_DIR } from '../constants/paths.js';
+
+const resetPasswordTemplate = fs
+  .readFileSync(path.join(TEMPLATE_DIR, 'reset-password-email.html'), 'utf-8')
+  .toString();
 
 const createSession = () => {
   return {
@@ -79,4 +91,68 @@ export const refreshSession = async (sessionId, refreshToken) => {
     userId: session.userId,
     ...createSession(),
   });
+};
+
+export const requestReset = async (email) => {
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    createHttpError(404, 'User not found');
+  }
+
+  const template = handlebars.compile(resetPasswordTemplate);
+
+  const token = jwt.sign(
+    {
+      sub: user._id,
+      email,
+    },
+    getEnvVar(envVars.JWT_SECRET),
+    {
+      expiresIn: '5m',
+    },
+  );
+
+  const html = template({
+    name: user.name,
+    link: `${getEnvVar(envVars.APP_DOMAIN)}/reset-password?token=${token}`,
+  });
+
+  try {
+    await sendMail({ email, html, subject: 'Reset your password!' });
+  } catch (error) {
+    console.error(error);
+    throw createHttpError(
+      500,
+      'Failed to send the email, please try again later.',
+    );
+  }
+
+  await sendMail({ email, html, subject: 'Reset your password!' });
+};
+
+export const resetPassword = async ({ token, password }) => {
+  let tokenPayload;
+
+  try {
+    tokenPayload = jwt.verify(token, getEnvVar(envVars.JWT_SECRET));
+  } catch (error) {
+    console.error(error);
+    throw createHttpError(401, 'Token is expired or invalid.');
+  }
+
+  const user = await User.findOne({
+    _id: tokenPayload.sub,
+    email: tokenPayload.email,
+  });
+
+  if (!user) {
+    throw createHttpError(404, 'User not found!');
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  await User.findByIdAndUpdate(tokenPayload.sub, { password: hashedPassword });
+
+  await Session.findOneAndDelete({ userId: tokenPayload.sub });
 };
