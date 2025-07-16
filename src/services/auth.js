@@ -127,8 +127,6 @@ export const requestReset = async (email) => {
       'Failed to send the email, please try again later.',
     );
   }
-
-  await sendMail({ email, html, subject: 'Reset your password!' });
 };
 
 export const resetPassword = async ({ token, password }) => {
